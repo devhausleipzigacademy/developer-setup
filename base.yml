@@ -1,0 +1,91 @@
+---
+- hosts: all
+
+  vars:
+    admin_keys:
+      root:
+        - name: CHOOSE_A_NAME
+          sshkey: YOUR_SSH_KEY
+
+  handlers:
+    - name: restart_sshd
+      systemd:
+        name: sshd
+        state: restarted
+
+    - name: restart_sysstat
+      systemd:
+        name: sysstat
+        state: restarted
+
+  tasks:
+    - name: Create Group
+      group:
+        name: user
+        state: present
+
+    - name: Create Docker Group
+      group:
+        name: docker
+        state: present
+
+    - name: Create Local User
+      user:
+        name: user
+        groups:
+          - user
+          - docker
+
+    - name: Manage SSH keys
+      authorized_key:
+        user: root
+        key: "{{ admin_keys['root']|map(attribute='sshkey')|join('\n') }}"
+        exclusive: true
+
+    - name: Manage SSH keys
+      authorized_key:
+        user: user
+        key: "{{ admin_keys['root']|map(attribute='sshkey')|join('\n') }}"
+        exclusive: true
+
+    - apt:
+        package:
+          [
+            "curl",
+            "fail2ban",
+            "screen",
+            "htop",
+            "atop",
+            "iotop",
+            "ioping",
+            "lsof",
+            "tcpdump",
+            "zsh",
+          ]
+        state: present
+        update_cache: yes
+
+    - name: nvm
+      shell: >
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
+      args:
+        creates: "{{ ansible_env.HOME }}/.nvm/nvm.sh"
+
+    - name: install node
+      shell: >
+        nvm install node
+
+    - name: Disable SSH password authentication
+      lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: "^#?PasswordAuthentication yes"
+        line: "PasswordAuthentication no"
+      notify: restart_sshd
+
+    - name: Allow 'user' group to have passwordless sudo
+      lineinfile:
+        dest: /etc/sudoers
+        state: present
+        regexp: "^%user"
+        line: "%user ALL=(ALL) NOPASSWD: ALL"
+        validate: "visudo -cf %s"

@@ -1,0 +1,10 @@
+---
+- hosts: all
+  roles:
+    - role: gantsign.oh-my-zsh
+      oh_my_zsh_install: yes
+      oh_my_zsh_plugins:
+        - git
+      users:
+        - username: root
+        - username: user
